@@ -13,6 +13,7 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 XP_COOLDOWN = 60
 XP_MIN = 10
 XP_MAX = 20
+MAX_LEVEL = 50
 
 db = sqlite3.connect("levels.db")
 cursor = db.cursor()
@@ -56,10 +57,14 @@ def xp_needed(level):
 
 
 def get_font(size):
-    path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"
+    ]
 
-    if os.path.exists(path):
-        return ImageFont.truetype(path, size)
+    for path in font_paths:
+        if os.path.exists(path):
+            return ImageFont.truetype(path, size)
 
     return ImageFont.load_default()
 
@@ -71,19 +76,21 @@ async def create_level_card(member, level, xp):
     image = Image.new(
         "RGB",
         (width, height),
-        (20, 22, 30)
+        (24, 25, 30)
     )
 
     draw = ImageDraw.Draw(image)
 
+    # Main card
     draw.rounded_rectangle(
         (10, 10, width - 10, height - 10),
-        radius=30,
-        fill=(30, 33, 44),
-        outline=(80, 160, 255),
-        width=3
+        radius=20,
+        fill=(32, 34, 42),
+        outline=(75, 78, 88),
+        width=2
     )
 
+    # User avatar
     try:
         avatar_data = await member.display_avatar.read()
 
@@ -92,64 +99,80 @@ async def create_level_card(member, level, xp):
         ).convert("RGB")
 
         avatar = avatar.resize(
-            (160, 160),
+            (150, 150),
             Image.Resampling.LANCZOS
         )
 
         mask = Image.new(
             "L",
-            (160, 160),
+            (150, 150),
             0
         )
 
         mask_draw = ImageDraw.Draw(mask)
 
         mask_draw.ellipse(
-            (0, 0, 160, 160),
+            (0, 0, 150, 150),
             fill=255
         )
 
         image.paste(
             avatar,
-            (60, 70),
+            (55, 60),
             mask
         )
 
     except Exception as error:
         print("Avatar error:", error)
 
+    # Username
     username = member.display_name
 
-    if len(username) > 20:
-        username = username[:20] + "..."
-
-    needed = xp_needed(level)
+    if len(username) > 22:
+        username = username[:22] + "..."
 
     draw.text(
-        (260, 55),
+        (245, 45),
         username,
         font=get_font(36),
         fill=(255, 255, 255)
     )
 
+    # Level
     draw.text(
-        (260, 105),
-        "LEVEL " + str(level),
-        font=get_font(30),
-        fill=(100, 180, 255)
+        (245, 90),
+        f"LEVEL {level}",
+        font=get_font(25),
+        fill=(120, 180, 255)
+    )
+
+    # Level-up message
+    level_message = (
+        f"Congratulations! You reached Level {level}!"
     )
 
     draw.text(
-        (260, 150),
+        (245, 130),
+        level_message,
+        font=get_font(21),
+        fill=(215, 215, 220)
+    )
+
+    # XP
+    needed = xp_needed(level)
+
+    draw.text(
+        (245, 165),
         f"{xp} / {needed} XP",
-        font=get_font(22),
-        fill=(220, 220, 230)
+        font=get_font(19),
+        fill=(160, 165, 175)
     )
 
-    bar_x = 260
-    bar_y = 195
+    # XP bar
+    bar_x = 245
+    bar_y = 200
     bar_width = 570
-    bar_height = 28
+    bar_height = 25
 
     draw.rounded_rectangle(
         (
@@ -158,11 +181,14 @@ async def create_level_card(member, level, xp):
             bar_x + bar_width,
             bar_y + bar_height
         ),
-        radius=14,
-        fill=(50, 54, 65)
+        radius=12,
+        fill=(55, 57, 65)
     )
 
-    progress = min(xp / needed, 1)
+    progress = min(
+        xp / needed,
+        1
+    )
 
     if progress > 0:
         draw.rounded_rectangle(
@@ -172,15 +198,16 @@ async def create_level_card(member, level, xp):
                 bar_x + int(bar_width * progress),
                 bar_y + bar_height
             ),
-            radius=14,
-            fill=(80, 165, 255)
+            radius=12,
+            fill=(88, 166, 255)
         )
 
+    # Footer
     draw.text(
-        (260, 240),
-        "REZOX • LEVEL UP",
-        font=get_font(18),
-        fill=(145, 150, 165)
+        (245, 245),
+        "REZOX",
+        font=get_font(17),
+        fill=(125, 130, 140)
     )
 
     output = io.BytesIO()
@@ -254,26 +281,45 @@ async def give_level_role(member, level):
 
         if old_role and old_role in member.roles:
             try:
-                await member.remove_roles(old_role)
+                await member.remove_roles(
+                    old_role
+                )
             except Exception as error:
-                print("Remove role error:", error)
+                print(
+                    "Remove role error:",
+                    error
+                )
 
     if new_role not in member.roles:
         try:
-            await member.add_roles(new_role)
+            await member.add_roles(
+                new_role
+            )
         except Exception as error:
-            print("Add role error:", error)
+            print(
+                "Add role error:",
+                error
+            )
 
 
 @bot.event
 async def on_ready():
     try:
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} slash commands.")
-    except Exception as error:
-        print("Slash sync error:", error)
 
-    print(f"Rezox is online as {bot.user}")
+        print(
+            f"Synced {len(synced)} slash commands."
+        )
+
+    except Exception as error:
+        print(
+            "Slash sync error:",
+            error
+        )
+
+    print(
+        f"Rezox is online as {bot.user}"
+    )
 
 
 @bot.event
@@ -327,10 +373,13 @@ async def on_message(message):
 
     old_level = level
 
-    if level < 50:
+    if level < MAX_LEVEL:
         xp += gained_xp
 
-        while level < 50 and xp >= xp_needed(level):
+        while (
+            level < MAX_LEVEL
+            and xp >= xp_needed(level)
+        ):
             xp -= xp_needed(level)
             level += 1
 
@@ -339,7 +388,13 @@ async def on_message(message):
     cursor.execute(
         """
         INSERT OR REPLACE INTO users
-        (guild_id, user_id, xp, level, messages)
+        (
+            guild_id,
+            user_id,
+            xp,
+            level,
+            messages
+        )
         VALUES (?, ?, ?, ?, ?)
         """,
         (
@@ -353,6 +408,7 @@ async def on_message(message):
 
     db.commit()
 
+    # LEVEL UP
     if level > old_level:
         await give_level_role(
             message.author,
@@ -375,17 +431,13 @@ async def on_message(message):
                 title="🎉 LEVEL UP!",
                 description=(
                     f"{message.author.mention} "
-                    f"reached **Level {level}**!"
+                    f"has reached **Level {level}**!"
                 ),
                 color=discord.Color.blurple()
             )
 
             embed.set_image(
                 url="attachment://rezox_levelup.png"
-            )
-
-            embed.set_footer(
-                text=f"Rezox • Level {level}"
             )
 
             await message.channel.send(
@@ -395,11 +447,14 @@ async def on_message(message):
             )
 
         except Exception as error:
-            print("LEVEL CARD ERROR:", error)
+            print(
+                "LEVEL CARD ERROR:",
+                error
+            )
 
             await message.channel.send(
                 f"🎉 {message.author.mention} "
-                f"reached **Level {level}**!"
+                f"has reached **Level {level}**!"
             )
 
     await bot.process_commands(message)
@@ -433,7 +488,10 @@ async def rank(interaction: discord.Interaction):
         messages = 0
 
     embed = discord.Embed(
-        title=f"📊 {interaction.user.display_name}'s Rank",
+        title=(
+            f"📊 "
+            f"{interaction.user.display_name}'s Rank"
+        ),
         color=discord.Color.blurple()
     )
 
@@ -449,7 +507,10 @@ async def rank(interaction: discord.Interaction):
 
     embed.add_field(
         name="XP",
-        value=f"**{xp} / {xp_needed(level)}**",
+        value=(
+            f"**{xp} / "
+            f"{xp_needed(level)}**"
+        ),
         inline=True
     )
 
@@ -468,7 +529,9 @@ async def rank(interaction: discord.Interaction):
     name="leaderboard",
     description="Show the Rezox XP leaderboard"
 )
-async def leaderboard(interaction: discord.Interaction):
+async def leaderboard(
+    interaction: discord.Interaction
+):
     cursor.execute(
         """
         SELECT user_id, level, xp
@@ -492,7 +555,10 @@ async def leaderboard(interaction: discord.Interaction):
 
     lines = []
 
-    for index, row in enumerate(rows, start=1):
+    for index, row in enumerate(
+        rows,
+        start=1
+    ):
         user_id, level, xp = row
 
         member = interaction.guild.get_member(
@@ -559,7 +625,11 @@ async def setlevelrole(
     cursor.execute(
         """
         INSERT OR REPLACE INTO level_roles
-        (guild_id, level, role_id)
+        (
+            guild_id,
+            level,
+            role_id
+        )
         VALUES (?, ?, ?)
         """,
         (
@@ -618,7 +688,9 @@ async def removelevelrole(
     name="levelroles",
     description="Show all automatic level roles"
 )
-async def levelroles(interaction: discord.Interaction):
+async def levelroles(
+    interaction: discord.Interaction
+):
     cursor.execute(
         """
         SELECT level, role_id
@@ -648,7 +720,8 @@ async def levelroles(interaction: discord.Interaction):
 
         if role:
             lines.append(
-                f"**Level {level}** → {role.mention}"
+                f"**Level {level}** → "
+                f"{role.mention}"
             )
 
     if not lines:

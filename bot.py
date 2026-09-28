@@ -70,12 +70,12 @@ def xp_needed(level):
 
 
 def get_font(size):
-    paths = [
+    font_paths = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"
     ]
 
-    for path in paths:
+    for path in font_paths:
         if os.path.exists(path):
             return ImageFont.truetype(path, size)
 
@@ -83,73 +83,84 @@ def get_font(size):
 
 
 async def create_level_card(member, level):
-    width = 900
-    height = 300
+    width = 1200
+    height = 450
 
     image = Image.new(
         "RGB",
         (width, height),
-        (30, 31, 35)
+        (25, 26, 30)
     )
 
     draw = ImageDraw.Draw(image)
 
+    # Clean card background
     draw.rounded_rectangle(
-        (5, 5, width - 5, height - 5),
-        radius=25,
-        fill=(30, 31, 35)
+        (8, 8, width - 8, height - 8),
+        radius=35,
+        fill=(25, 26, 30)
     )
 
+    # Avatar
     avatar_data = await member.display_avatar.read()
 
     avatar = Image.open(
         io.BytesIO(avatar_data)
     ).convert("RGBA")
 
-    avatar = avatar.resize((190, 190))
+    avatar = avatar.resize(
+        (230, 230),
+        Image.Resampling.LANCZOS
+    )
 
     mask = Image.new(
         "L",
-        (190, 190),
+        (230, 230),
         0
     )
 
     mask_draw = ImageDraw.Draw(mask)
 
     mask_draw.ellipse(
-        (0, 0, 190, 190),
+        (0, 0, 230, 230),
         fill=255
     )
 
     image.paste(
         avatar,
-        (50, 55),
+        (70, 110),
         mask
     )
 
-    username_font = get_font(42)
-    congrats_font = get_font(36)
-    level_font = get_font(34)
+    # BIG fonts
+    username_font = get_font(64)
+    congrats_font = get_font(58)
+    level_font = get_font(48)
+
+    # Username
+    username = member.display_name
 
     draw.text(
-        (280, 55),
-        member.display_name,
+        (360, 75),
+        username,
         font=username_font,
         fill=(255, 255, 255)
     )
 
+    # Big congratulations
     draw.text(
-        (280, 115),
+        (360, 175),
         "CONGRATULATIONS!",
         font=congrats_font,
         fill=(255, 255, 255)
     )
 
+    # Big level message
     draw.text(
-        (280, 170),
-        f"You reached Level {level}!",
+        (360, 255),
+        f"YOU REACHED LEVEL {level}!",
         font=level_font,
-        fill=(220, 220, 220)
+        fill=(225, 225, 225)
     )
 
     output = io.BytesIO()
@@ -227,25 +238,15 @@ async def get_level_role(guild_id, level):
         ORDER BY level DESC
         LIMIT 1
         """,
-        (
-            guild_id,
-            level
-        )
+        (guild_id, level)
     )
 
-    result = cursor.fetchone()
-
-    if not result:
-        return None
-
-    return result[0], result[1]
+    return cursor.fetchone()
 
 
 async def give_level_role(member, level):
-    guild_id = member.guild.id
-
     result = await get_level_role(
-        guild_id,
+        member.guild.id,
         level
     )
 
@@ -269,7 +270,6 @@ async def give_level_role(member, level):
             f"Cannot manage role {role.name}. "
             f"Move Rezox's role above it."
         )
-
         return None
 
     cursor.execute(
@@ -278,15 +278,13 @@ async def give_level_role(member, level):
         FROM level_roles
         WHERE guild_id=?
         """,
-        (guild_id,)
+        (member.guild.id,)
     )
 
     configured_roles = cursor.fetchall()
 
     for row in configured_roles:
-        old_role = member.guild.get_role(
-            row[0]
-        )
+        old_role = member.guild.get_role(row[0])
 
         if (
             old_role
@@ -295,9 +293,7 @@ async def give_level_role(member, level):
         ):
             if old_role < bot_member.top_role:
                 try:
-                    await member.remove_roles(
-                        old_role
-                    )
+                    await member.remove_roles(old_role)
                 except discord.Forbidden:
                     pass
 
@@ -314,19 +310,11 @@ async def give_level_role(member, level):
 async def on_ready():
     try:
         synced = await bot.tree.sync()
-
-        print(
-            f"Synced {len(synced)} slash commands."
-        )
-
+        print(f"Synced {len(synced)} slash commands.")
     except Exception as e:
-        print(
-            f"Command sync error: {e}"
-        )
+        print(f"Command sync error: {e}")
 
-    print(
-        f"Rezox is online as {bot.user}"
-    )
+    print(f"Rezox is online as {bot.user}")
 
 
 @bot.event
@@ -342,12 +330,12 @@ async def on_message(message):
 
     now = time.time()
 
-    old_time = last_xp.get(
+    previous = last_xp.get(
         (guild_id, user_id),
         0
     )
 
-    if now - old_time < XP_COOLDOWN:
+    if now - previous < XP_COOLDOWN:
         await bot.process_commands(message)
         return
 
@@ -359,11 +347,7 @@ async def on_message(message):
     )
 
     messages += 1
-
-    xp += random.randint(
-        XP_MIN,
-        XP_MAX
-    )
+    xp += random.randint(XP_MIN, XP_MAX)
 
     leveled_up = False
 
@@ -388,7 +372,6 @@ async def on_message(message):
     )
 
     if leveled_up:
-
         new_role = await give_level_role(
             message.author,
             level
@@ -411,9 +394,7 @@ async def on_message(message):
             )
 
         except Exception as e:
-            print(
-                f"LEVEL CARD ERROR: {e}"
-            )
+            print(f"LEVEL CARD ERROR: {e}")
 
             await message.channel.send(
                 f"🎉 {message.author.mention} "
@@ -422,8 +403,8 @@ async def on_message(message):
 
         if new_role:
             await message.channel.send(
-                f"🎉 Congratulations! "
-                f"You got a new role {new_role.mention}"
+                f"🎉 **Congratulations! You got a new role "
+                f"{new_role.mention}**"
             )
 
     await bot.process_commands(message)
@@ -433,9 +414,7 @@ async def on_message(message):
     name="rank",
     description="Check your level, XP and server rank."
 )
-async def rank(
-    interaction: discord.Interaction
-):
+async def rank(interaction: discord.Interaction):
     xp, level, messages = await get_user(
         interaction.guild.id,
         interaction.user.id
@@ -447,17 +426,11 @@ async def rank(
         FROM users
         WHERE guild_id=? AND level>?
         """,
-        (
-            interaction.guild.id,
-            level
-        )
+        (interaction.guild.id, level)
     )
 
     higher = cursor.fetchone()[0]
-
     server_rank = higher + 1
-
-    needed = xp_needed(level)
 
     embed = discord.Embed(
         title="📊 Your Rank",
@@ -476,7 +449,7 @@ async def rank(
 
     embed.add_field(
         name="XP",
-        value=f"{xp}/{needed}",
+        value=f"{xp}/{xp_needed(level)}",
         inline=True
     )
 
@@ -501,9 +474,7 @@ async def rank(
     name="leaderboard",
     description="Show the server XP leaderboard."
 )
-async def leaderboard(
-    interaction: discord.Interaction
-):
+async def leaderboard(interaction: discord.Interaction):
     cursor.execute(
         """
         SELECT user_id, xp, level, messages
@@ -525,20 +496,16 @@ async def leaderboard(
 
     text = ""
 
-    for index, row in enumerate(
-        rows,
-        start=1
-    ):
+    for index, row in enumerate(rows, start=1):
         user_id, xp, level, messages = row
 
-        member = interaction.guild.get_member(
-            user_id
-        )
+        member = interaction.guild.get_member(user_id)
 
-        if member:
-            name = member.display_name
-        else:
-            name = f"User {user_id}"
+        name = (
+            member.display_name
+            if member
+            else f"User {user_id}"
+        )
 
         text += (
             f"**{index}. {name}** — "
@@ -602,8 +569,8 @@ async def setlevelrole(
     db.commit()
 
     await interaction.response.send_message(
-        f"✅ Level **{level}** is now linked "
-        f"to {role.mention}."
+        f"✅ Level **{level}** is now linked to "
+        f"{role.mention}."
     )
 
 
@@ -647,9 +614,7 @@ async def removelevelrole(
     name="levelroles",
     description="Show all configured level roles."
 )
-async def levelroles(
-    interaction: discord.Interaction
-):
+async def levelroles(interaction: discord.Interaction):
     cursor.execute(
         """
         SELECT level, role_id
@@ -671,19 +636,15 @@ async def levelroles(
     text = ""
 
     for level, role_id in rows:
-        role = interaction.guild.get_role(
-            role_id
-        )
+        role = interaction.guild.get_role(role_id)
 
         if role:
             text += (
-                f"**Level {level}** → "
-                f"{role.mention}\n"
+                f"**Level {level}** → {role.mention}\n"
             )
         else:
             text += (
-                f"**Level {level}** → "
-                f"Deleted role\n"
+                f"**Level {level}** → Deleted role\n"
             )
 
     embed = discord.Embed(
@@ -701,12 +662,9 @@ async def levelroles(
     name="daily",
     description="Claim your daily XP reward."
 )
-async def daily(
-    interaction: discord.Interaction
-):
+async def daily(interaction: discord.Interaction):
     guild_id = interaction.guild.id
     user_id = interaction.user.id
-
     now = int(time.time())
 
     cursor.execute(
@@ -722,28 +680,19 @@ async def daily(
     )
 
     result = cursor.fetchone()
-
     last_claim = result[0] if result else 0
 
-    cooldown = 86400
-
-    remaining = cooldown - (
-        now - last_claim
-    )
+    remaining = 86400 - (now - last_claim)
 
     if remaining > 0:
         hours = remaining // 3600
-
-        minutes = (
-            remaining % 3600
-        ) // 60
+        minutes = (remaining % 3600) // 60
 
         await interaction.response.send_message(
             f"⏳ You already claimed your daily reward.\n"
             f"Come back in **{hours}h {minutes}m**.",
             ephemeral=True
         )
-
         return
 
     xp, level, messages = await get_user(
@@ -803,8 +752,8 @@ async def daily(
 
         if new_role:
             await interaction.channel.send(
-                f"🎉 Congratulations! "
-                f"You got a new role {new_role.mention}"
+                f"🎉 **Congratulations! You got a new role "
+                f"{new_role.mention}**"
             )
 
 
@@ -843,9 +792,7 @@ async def levelcard(
         )
 
     except Exception as e:
-        print(
-            f"LEVELCARD ERROR: {e}"
-        )
+        print(f"LEVELCARD ERROR: {e}")
 
         await interaction.response.send_message(
             "❌ Couldn't create the level card.",
@@ -855,7 +802,7 @@ async def levelcard(
 
 @bot.tree.command(
     name="test",
-    description="Test the level-up card without changing XP."
+    description="Preview the level-up card without changing XP."
 )
 @app_commands.describe(
     level="Level to preview from 1 to 50"
@@ -885,9 +832,7 @@ async def test(
         )
 
     except Exception as e:
-        print(
-            f"TEST CARD ERROR: {e}"
-        )
+        print(f"TEST CARD ERROR: {e}")
 
         await interaction.response.send_message(
             "❌ Couldn't create the test card.",
@@ -899,9 +844,7 @@ async def test(
     name="help",
     description="Show all Rezox commands."
 )
-async def help_command(
-    interaction: discord.Interaction
-):
+async def help_command(interaction: discord.Interaction):
     embed = discord.Embed(
         title="⚡ Rezox Help",
         description="Your server's Level-Up Bot",
@@ -932,9 +875,7 @@ async def help_command(
 
     embed.add_field(
         name="ℹ️ Other",
-        value=(
-            "`/help` — Show this help menu"
-        ),
+        value="`/help` — Show this help menu",
         inline=False
     )
 

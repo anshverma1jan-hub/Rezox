@@ -10,9 +10,9 @@ import os
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# =========================
+# =========================================================
 # SETTINGS
-# =========================
+# =========================================================
 
 XP_PER_MESSAGE = 10
 XP_COOLDOWN = 60
@@ -22,9 +22,9 @@ DAILY_COOLDOWN = 86400
 
 MAX_LEVEL = 50
 
-# =========================
+# =========================================================
 # DISCORD
-# =========================
+# =========================================================
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -35,9 +35,9 @@ bot = commands.Bot(
     intents=intents
 )
 
-# =========================
+# =========================================================
 # DATABASE
-# =========================
+# =========================================================
 
 db = sqlite3.connect("rezox.db")
 cur = db.cursor()
@@ -66,9 +66,9 @@ CREATE TABLE IF NOT EXISTS level_roles (
 
 db.commit()
 
-# =========================
-# XP FUNCTIONS
-# =========================
+# =========================================================
+# XP
+# =========================================================
 
 def xp_needed(level):
     return level * 100
@@ -126,49 +126,50 @@ def save_user(
 
     db.commit()
 
+# =========================================================
+# FONT SYSTEM
+# =========================================================
+# IMPORTANT:
+# There is NO fit_font function anywhere in this code.
+# All important card fonts have fixed sizes.
+# =========================================================
 
-# =========================
-# FONT
-# =========================
+FONT_FILES = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"
+]
 
-def get_font(size):
-    paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"
-    ]
 
-    for path in paths:
+def load_font(size):
+    for path in FONT_FILES:
         if os.path.exists(path):
-            return ImageFont.truetype(path, size)
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                pass
 
     return ImageFont.load_default()
 
 
-def fit_font(text, max_size, min_size, max_width):
-    size = max_size
+FONT_SMALL = load_font(42)
+FONT_LEVEL_UP = load_font(48)
+FONT_USERNAME = load_font(76)
+FONT_CONGRATS = load_font(116)
+FONT_LEVEL = load_font(92)
+FONT_ROLE = load_font(34)
+FONT_SPARKLE = load_font(32)
 
-    while size >= min_size:
-        font = get_font(size)
-        box = font.getbbox(text)
-
-        width = box[2] - box[0]
-
-        if width <= max_width:
-            return font
-
-        size -= 2
-
-    return get_font(min_size)
-
-
-# =========================
+# =========================================================
 # AVATAR
-# =========================
+# =========================================================
 
 async def get_avatar(member):
+
     try:
+
         async with aiohttp.ClientSession() as session:
+
             async with session.get(
                 str(member.display_avatar.with_size(512).url)
             ) as response:
@@ -183,25 +184,25 @@ async def get_avatar(member):
         ).convert("RGBA")
 
     except Exception:
+
         return Image.new(
             "RGBA",
             (512, 512),
             (70, 70, 80, 255)
         )
 
-
-# =========================
+# =========================================================
 # LEVEL CARD
-# =========================
+# =========================================================
 
 async def create_level_card(member, level, role=None):
 
     WIDTH = 1800
     HEIGHT = 650
 
-    # --------------------------------
-    # DARK BACKGROUND
-    # --------------------------------
+    # -----------------------------------------------------
+    # BACKGROUND
+    # -----------------------------------------------------
 
     image = Image.new(
         "RGBA",
@@ -209,9 +210,9 @@ async def create_level_card(member, level, role=None):
         (13, 15, 23, 255)
     )
 
-    # --------------------------------
+    # -----------------------------------------------------
     # PURPLE GLOW
-    # --------------------------------
+    # -----------------------------------------------------
 
     glow = Image.new(
         "RGBA",
@@ -242,9 +243,9 @@ async def create_level_card(member, level, role=None):
 
     draw = ImageDraw.Draw(image)
 
-    # --------------------------------
+    # -----------------------------------------------------
     # BORDER
-    # --------------------------------
+    # -----------------------------------------------------
 
     draw.rounded_rectangle(
         (8, 8, WIDTH - 8, HEIGHT - 8),
@@ -253,15 +254,15 @@ async def create_level_card(member, level, role=None):
         width=5
     )
 
-    # --------------------------------
-    # GET USER AVATAR
-    # --------------------------------
+    # -----------------------------------------------------
+    # AVATAR
+    # -----------------------------------------------------
 
     avatar = await get_avatar(member)
 
-    # --------------------------------
-    # BIG FADED AVATAR ON RIGHT
-    # --------------------------------
+    # -----------------------------------------------------
+    # FADED AVATAR ON RIGHT
+    # -----------------------------------------------------
 
     right_avatar = avatar.copy()
 
@@ -276,23 +277,27 @@ async def create_level_card(member, level, role=None):
         0
     )
 
-    right_mask_draw = ImageDraw.Draw(right_mask)
+    right_mask_draw = ImageDraw.Draw(
+        right_mask
+    )
 
     right_mask_draw.ellipse(
         (0, 0, 700, 700),
-        fill=65
+        fill=55
     )
 
-    right_avatar.putalpha(right_mask)
+    right_avatar.putalpha(
+        right_mask
+    )
 
     image.alpha_composite(
         right_avatar,
         (1170, -20)
     )
 
-    # --------------------------------
+    # -----------------------------------------------------
     # MAIN PFP
-    # --------------------------------
+    # -----------------------------------------------------
 
     avatar_size = 350
 
@@ -319,7 +324,7 @@ async def create_level_card(member, level, role=None):
     avatar_x = 55
     avatar_y = 150
 
-    # PFP glow
+    # PFP border
     draw.ellipse(
         (
             avatar_x - 15,
@@ -336,115 +341,91 @@ async def create_level_card(member, level, role=None):
         avatar_mask
     )
 
-    # --------------------------------
-    # TEXT AREA
-    # --------------------------------
+    # -----------------------------------------------------
+    # TEXT POSITION
+    # -----------------------------------------------------
 
     text_x = 470
-    max_text_width = 1250
+
+    # -----------------------------------------------------
+    # USERNAME
+    # -----------------------------------------------------
+    # Only truncate very long names.
+    # Font size NEVER changes.
+    # -----------------------------------------------------
 
     username = member.display_name
 
     if len(username) > 24:
         username = username[:24] + "..."
 
-    username_font = fit_font(
-        username,
-        78,
-        55,
-        max_text_width
-    )
-
-    congratulations_font = fit_font(
-        "CONGRATULATIONS!",
-        130,
-        110,
-        max_text_width
-    )
-
-    level_text = f"YOU REACHED LEVEL {level}!"
-
-    level_font = fit_font(
-        level_text,
-        112,
-        95,
-        max_text_width
-    )
-
-    role_font = fit_font(
-        "🎉 You got a new role!",
-        42,
-        30,
-        max_text_width
-    )
-
-    # --------------------------------
+    # -----------------------------------------------------
     # LEVEL UP
-    # --------------------------------
+    # -----------------------------------------------------
 
     draw.text(
         (text_x, 35),
         "LEVEL UP",
-        font=get_font(48),
+        font=FONT_LEVEL_UP,
         fill=(210, 170, 255, 255)
     )
 
-    # --------------------------------
+    # -----------------------------------------------------
     # USERNAME
-    # --------------------------------
+    # -----------------------------------------------------
 
     draw.text(
-        (text_x, 88),
+        (text_x, 90),
         username,
-        font=username_font,
+        font=FONT_USERNAME,
         fill=(255, 255, 255, 255)
     )
 
-    # --------------------------------
-    # HUGE CONGRATULATIONS
-    # --------------------------------
+    # -----------------------------------------------------
+    # CONGRATULATIONS
+    # -----------------------------------------------------
 
     draw.text(
-        (text_x, 205),
+        (text_x, 210),
         "CONGRATULATIONS!",
-        font=congratulations_font,
+        font=FONT_CONGRATS,
         fill=(255, 255, 255, 255)
     )
 
-    # --------------------------------
-    # HUGE LEVEL TEXT
-    # --------------------------------
+    # -----------------------------------------------------
+    # LEVEL
+    # -----------------------------------------------------
+
+    level_text = f"YOU REACHED LEVEL {level}!"
 
     draw.text(
-        (text_x, 350),
+        (text_x, 355),
         level_text,
-        font=level_font,
+        font=FONT_LEVEL,
         fill=(180, 105, 255, 255)
     )
 
-    # --------------------------------
-    # ROLE TEXT
-    # --------------------------------
+    # -----------------------------------------------------
+    # ROLE
+    # -----------------------------------------------------
 
     if role:
 
-        role_text = f"🎉 You got a new role  @{role.name}"
+        role_text = f"NEW ROLE: {role.name}"
 
-        if len(role_text) > 42:
-            role_text = role_text[:42] + "..."
+        if len(role_text) > 38:
+            role_text = role_text[:38] + "..."
 
         draw.text(
-            (text_x, 510),
+            (text_x, 515),
             role_text,
-            font=role_font,
+            font=FONT_ROLE,
             fill=(225, 225, 235, 255)
         )
 
-    # --------------------------------
+    # -----------------------------------------------------
     # SPARKLES
-    # --------------------------------
-
-    sparkle_font = get_font(34)
+    # -----------------------------------------------------
 
     sparkle_positions = [
         (420, 30),
@@ -456,16 +437,17 @@ async def create_level_card(member, level, role=None):
     ]
 
     for x, y in sparkle_positions:
+
         draw.text(
             (x, y),
-            "✦",
-            font=sparkle_font,
+            "*",
+            font=FONT_SPARKLE,
             fill=(190, 120, 255, 255)
         )
 
-    # --------------------------------
-    # SAVE
-    # --------------------------------
+    # -----------------------------------------------------
+    # SAVE PNG
+    # -----------------------------------------------------
 
     output = io.BytesIO()
 
@@ -479,10 +461,9 @@ async def create_level_card(member, level, role=None):
 
     return output
 
-
-# =========================
-# LEVEL ROLE
-# =========================
+# =========================================================
+# LEVEL ROLES
+# =========================================================
 
 async def apply_level_role(member, level):
 
@@ -507,19 +488,21 @@ async def apply_level_role(member, level):
     if role is None:
         return None
 
-    # Bot role must be higher
     if role >= member.guild.me.top_role:
         return None
 
     try:
+
         await member.add_roles(
             role,
             reason="Rezox level reward"
         )
+
     except Exception:
+
         return None
 
-    # Remove previous configured level roles
+    # Remove lower configured level roles
     cur.execute("""
         SELECT role_id
         FROM level_roles
@@ -540,19 +523,20 @@ async def apply_level_role(member, level):
         if old_role and old_role in member.roles:
 
             try:
+
                 await member.remove_roles(
                     old_role,
                     reason="Rezox level progression"
                 )
+
             except Exception:
                 pass
 
     return role
 
-
-# =========================
-# SEND LEVEL UP
-# =========================
+# =========================================================
+# LEVEL UP MESSAGE
+# =========================================================
 
 async def send_level_up(
     member,
@@ -575,17 +559,15 @@ async def send_level_up(
     content = None
 
     if role:
+
         content = (
             f"🎉 **Congratulations!** "
             f"You got a new role {role.mention}"
         )
 
-    # Prefer original channel
     if channel is None:
-
         channel = member.guild.system_channel
 
-    # Fallback channel
     if channel is None:
 
         for ch in member.guild.text_channels:
@@ -602,25 +584,28 @@ async def send_level_up(
     if channel:
 
         try:
+
             await channel.send(
                 content=content,
                 file=file
             )
+
         except Exception as e:
+
             print(
                 "Level card send error:",
                 e
             )
 
-
-# =========================
+# =========================================================
 # READY
-# =========================
+# =========================================================
 
 @bot.event
 async def on_ready():
 
     try:
+
         synced = await bot.tree.sync()
 
         print(
@@ -638,10 +623,9 @@ async def on_ready():
         f"Rezox is online as {bot.user}"
     )
 
-
-# =========================
+# =========================================================
 # MESSAGE XP
-# =========================
+# =========================================================
 
 @bot.event
 async def on_message(message):
@@ -664,11 +648,9 @@ async def on_message(message):
 
     now = time.time()
 
-    # 60 second XP cooldown
     if now - last_xp >= XP_COOLDOWN:
 
         last_xp = now
-
         xp += XP_PER_MESSAGE
 
         old_level = level
@@ -691,7 +673,6 @@ async def on_message(message):
             last_daily
         )
 
-        # Level increased
         if level > old_level:
 
             for new_level in range(
@@ -727,18 +708,15 @@ async def on_message(message):
         message
     )
 
-
-# =========================
+# =========================================================
 # /RANK
-# =========================
+# =========================================================
 
 @bot.tree.command(
     name="rank",
     description="Check your current level and XP"
 )
-async def rank(
-    interaction: discord.Interaction
-):
+async def rank(interaction: discord.Interaction):
 
     xp, level, messages, last_xp, last_daily = get_user(
         interaction.guild.id,
@@ -746,9 +724,12 @@ async def rank(
     )
 
     if level < MAX_LEVEL:
+
         needed = xp_needed(level)
         xp_text = f"{xp}/{needed}"
+
     else:
+
         xp_text = "MAX LEVEL"
 
     embed = discord.Embed(
@@ -782,18 +763,15 @@ async def rank(
         embed=embed
     )
 
-
-# =========================
+# =========================================================
 # /LEADERBOARD
-# =========================
+# =========================================================
 
 @bot.tree.command(
     name="leaderboard",
     description="Show the server XP leaderboard"
 )
-async def leaderboard(
-    interaction: discord.Interaction
-):
+async def leaderboard(interaction: discord.Interaction):
 
     cur.execute("""
         SELECT user_id, level, xp
@@ -849,10 +827,9 @@ async def leaderboard(
         embed=embed
     )
 
-
-# =========================
+# =========================================================
 # /SETLEVELROLE
-# =========================
+# =========================================================
 
 @bot.tree.command(
     name="setlevelrole",
@@ -896,10 +873,9 @@ async def setlevelrole(
         f"✅ Level **{level}** → {role.mention}"
     )
 
-
-# =========================
+# =========================================================
 # /REMOVELEVELROLE
-# =========================
+# =========================================================
 
 @bot.tree.command(
     name="removelevelrole",
@@ -930,18 +906,15 @@ async def removelevelrole(
         f"✅ Level **{level}** role removed."
     )
 
-
-# =========================
+# =========================================================
 # /LEVELROLES
-# =========================
+# =========================================================
 
 @bot.tree.command(
     name="levelroles",
     description="Show configured level roles"
 )
-async def levelroles(
-    interaction: discord.Interaction
-):
+async def levelroles(interaction: discord.Interaction):
 
     cur.execute("""
         SELECT level, role_id
@@ -971,11 +944,14 @@ async def levelroles(
         )
 
         if role:
+
             text += (
                 f"**Level {level}** → "
                 f"{role.mention}\n"
             )
+
         else:
+
             text += (
                 f"**Level {level}** → "
                 f"Deleted role\n"
@@ -991,18 +967,15 @@ async def levelroles(
         embed=embed
     )
 
-
-# =========================
+# =========================================================
 # /LEVELCARD
-# =========================
+# =========================================================
 
 @bot.tree.command(
     name="levelcard",
     description="Show your current level card"
 )
-async def levelcard(
-    interaction: discord.Interaction
-):
+async def levelcard(interaction: discord.Interaction):
 
     await interaction.response.defer()
 
@@ -1025,10 +998,9 @@ async def levelcard(
         file=file
     )
 
-
-# =========================
+# =========================================================
 # /TEST
-# =========================
+# =========================================================
 
 @bot.tree.command(
     name="test",
@@ -1044,7 +1016,6 @@ async def test(
 
     await interaction.response.defer()
 
-    # Find role configured for test level
     cur.execute("""
         SELECT role_id
         FROM level_roles
@@ -1079,18 +1050,15 @@ async def test(
         file=file
     )
 
-
-# =========================
+# =========================================================
 # /DAILY
-# =========================
+# =========================================================
 
 @bot.tree.command(
     name="daily",
     description="Claim your daily XP"
 )
-async def daily(
-    interaction: discord.Interaction
-):
+async def daily(interaction: discord.Interaction):
 
     guild_id = interaction.guild.id
     user_id = interaction.user.id
@@ -1169,18 +1137,15 @@ async def daily(
                 interaction.channel
             )
 
-
-# =========================
+# =========================================================
 # /HELP
-# =========================
+# =========================================================
 
 @bot.tree.command(
     name="help",
     description="Show Rezox commands"
 )
-async def help_command(
-    interaction: discord.Interaction
-):
+async def help_command(interaction: discord.Interaction):
 
     embed = discord.Embed(
         title="🤖 Rezox Commands",
@@ -1202,10 +1167,9 @@ async def help_command(
         embed=embed
     )
 
-
-# =========================
-# ROLE PERMISSION ERROR
-# =========================
+# =========================================================
+# ERROR HANDLER
+# =========================================================
 
 @setlevelrole.error
 async def setlevelrole_error(
@@ -1230,18 +1194,21 @@ async def setlevelrole_error(
             error
         )
 
-        await interaction.response.send_message(
-            "❌ Something went wrong.",
-            ephemeral=True
-        )
+        if not interaction.response.is_done():
 
+            await interaction.response.send_message(
+                "❌ Something went wrong.",
+                ephemeral=True
+            )
 
-# =========================
+# =========================================================
 # START BOT
-# =========================
+# =========================================================
 
 if not TOKEN:
+
     print("❌ DISCORD_TOKEN is missing!")
 
 else:
+
     bot.run(TOKEN)
